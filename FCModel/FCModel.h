@@ -95,8 +95,12 @@ typedef NS_ENUM(NSInteger, FCModelSaveResult) {
 // Or use one of these convenience methods, which calls dataWasUpdatedExternally automatically and offers $T/$PK parsing.
 // If you don't know which tables will be affected, or if it will affect more than one, call on FCModel, not a subclass.
 // Only call on a subclass if only that model's table will be affected.
+// By default the instances currently loaded are notified in order to reload their data
+// If you don't want to notify them, use the notify argument set to NO
 + (NSError *)executeUpdateQuery:(NSString *)query, ...;
++ (NSError *)executeUpdateQuery:(NSString *)query notify:(BOOL)notify, ...;
 + (NSError *)executeUpdateQuery:(NSString *)query arguments:(NSArray *)arguments;
++ (NSError *)executeUpdateQuery:(NSString *)query notify:(BOOL)notify arguments:(NSArray *)arguments;
 
 // CRUD basics
 + (instancetype)instanceWithPrimaryKey:(id)primaryKeyValue; // will create if nonexistent
