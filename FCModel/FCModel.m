@@ -107,6 +107,7 @@ static inline BOOL checkForOpenDatabaseFatal(BOOL fatal)
 - (void)saveWasRefused { }
 - (void)saveDidFail { }
 + (NSSet *)ignoredFieldNames { return [NSSet set]; }
++ (BOOL)useInstancesCache{ return YES; }
 
 #pragma mark - Instance tracking and uniquing
 
@@ -153,11 +154,14 @@ static inline BOOL checkForOpenDatabaseFatal(BOOL fatal)
     primaryKeyValue = [self normalizedPrimaryKeyValue:primaryKeyValue];
     
     FCModel *instance = NULL;
-    dispatch_semaphore_wait(g_instancesReadLock, DISPATCH_TIME_FOREVER);
-    NSMapTable *classCache = g_instances[self];
-    if (! classCache) classCache = g_instances[(id) self] = [NSMapTable strongToWeakObjectsMapTable];
-    instance = [classCache objectForKey:primaryKeyValue];
-    dispatch_semaphore_signal(g_instancesReadLock);
+    NSMapTable *classCache = NULL;
+    if ([self useInstancesCache]) {
+      dispatch_semaphore_wait(g_instancesReadLock, DISPATCH_TIME_FOREVER);
+      classCache = g_instances[self];
+      if (! classCache) classCache = g_instances[(id) self] = [NSMapTable strongToWeakObjectsMapTable];
+      instance = [classCache objectForKey:primaryKeyValue];
+      dispatch_semaphore_signal(g_instancesReadLock);
+    }
     
     if (! instance) {
         // Not in memory yet. Check DB.
@@ -168,6 +172,7 @@ static inline BOOL checkForOpenDatabaseFatal(BOOL fatal)
         }
         
         if (instance) {
+          if (classCache) {
             dispatch_semaphore_wait(g_instancesReadLock, DISPATCH_TIME_FOREVER);
             FCModel *racedInstance = [classCache objectForKey:primaryKeyValue];
             if (racedInstance) {
@@ -176,6 +181,7 @@ static inline BOOL checkForOpenDatabaseFatal(BOOL fatal)
                 [classCache setObject:instance forKey:primaryKeyValue];
             }
             dispatch_semaphore_signal(g_instancesReadLock);
+          }
         }
     }
 
@@ -676,14 +682,16 @@ static inline BOOL checkForOpenDatabaseFatal(BOOL fatal)
         id largestNumber = [self firstValueFromQuery:@"SELECT MAX($PK) FROM $T"];
         int64_t largestExistingValue = largestNumber && largestNumber != NSNull.null ? ((NSNumber *) largestNumber).longLongValue : 0;
 
-        dispatch_semaphore_wait(g_instancesReadLock, DISPATCH_TIME_FOREVER);
-        NSMapTable *classCache = g_instances[self];
-        NSArray *instances = classCache ? [classCache.objectEnumerator.allObjects copy] : [NSArray array];
-        for (FCModel *instance in instances) {
-            largestExistingValue = MAX(largestExistingValue, ((NSNumber *)instance.primaryKey).longLongValue);
+        if ([self useInstancesCache]) {
+            dispatch_semaphore_wait(g_instancesReadLock, DISPATCH_TIME_FOREVER);
+            NSMapTable *classCache = g_instances[self];
+            NSArray *instances = classCache ? [classCache.objectEnumerator.allObjects copy] : [NSArray array];
+            for (FCModel *instance in instances) {
+                largestExistingValue = MAX(largestExistingValue, ((NSNumber *)instance.primaryKey).longLongValue);
+            }
+            dispatch_semaphore_signal(g_instancesReadLock);
         }
-        dispatch_semaphore_signal(g_instancesReadLock);
-        
+      
         largestExistingValue++;
         return @(largestExistingValue);
     }
@@ -731,13 +739,15 @@ static inline BOOL checkForOpenDatabaseFatal(BOOL fatal)
                         id newKeyValue = [self.class normalizedPrimaryKeyValue:[self.class primaryKeyValueForNewInstance]];
                         if ([self.class instanceFromDatabaseWithPrimaryKey:newKeyValue]) continue; // already exists in database
 
-                        // already exists in memory (unsaved)
-                        dispatch_semaphore_wait(g_instancesReadLock, DISPATCH_TIME_FOREVER);
-                        NSMapTable *classCache = g_instances[self.class];
-                        if (! classCache) classCache = g_instances[(id) self.class] = [NSMapTable strongToWeakObjectsMapTable];
-                        conflict = (nil != [classCache objectForKey:newKeyValue]);
-                        if (! conflict) [classCache setObject:self forKey:newKeyValue];
-                        dispatch_semaphore_signal(g_instancesReadLock);
+                        if ([self.class useInstancesCache]) {
+                          // already exists in memory (unsaved)
+                          dispatch_semaphore_wait(g_instancesReadLock, DISPATCH_TIME_FOREVER);
+                          NSMapTable *classCache = g_instances[self.class];
+                          if (! classCache) classCache = g_instances[(id) self.class] = [NSMapTable strongToWeakObjectsMapTable];
+                          conflict = (nil != [classCache objectForKey:newKeyValue]);
+                          if (! conflict) [classCache setObject:self forKey:newKeyValue];
+                          dispatch_semaphore_signal(g_instancesReadLock);
+                        }
                         
                         [self setValue:newKeyValue forKey:key];
                     } while (conflict);
@@ -1071,11 +1081,13 @@ static inline BOOL checkForOpenDatabaseFatal(BOOL fatal)
 - (void)removeFromCache
 {
     id primaryKeyValue = self.primaryKey;
-    if (g_instances && primaryKeyValue && primaryKeyValue != NSNull.null) {
-        dispatch_semaphore_wait(g_instancesReadLock, DISPATCH_TIME_FOREVER);
-        NSMapTable *classCache = g_instances[self.class];
-        [classCache removeObjectForKey:primaryKeyValue];
-        dispatch_semaphore_signal(g_instancesReadLock);
+    if ([self.class useInstancesCache]) {
+      if (g_instances && primaryKeyValue && primaryKeyValue != NSNull.null) {
+          dispatch_semaphore_wait(g_instancesReadLock, DISPATCH_TIME_FOREVER);
+          NSMapTable *classCache = g_instances[self.class];
+          [classCache removeObjectForKey:primaryKeyValue];
+          dispatch_semaphore_signal(g_instancesReadLock);
+      }
     }
 }
 

@@ -175,6 +175,8 @@ typedef NS_ENUM(NSInteger, FCModelSaveResult) {
 
 + (NSSet *)ignoredFieldNames; // Fields that exist in the table but should not be read into the model. Default empty set, cannot be nil.
 
++ (BOOL)useInstancesCache; // Return true if the instances should be cached into the memory
+
 // To create new records with supplied primary-key values, call instanceWithPrimaryKey:, then save when done
 //  setting other fields.
 //
