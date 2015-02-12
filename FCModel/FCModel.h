@@ -175,6 +175,10 @@ typedef NS_ENUM(NSInteger, FCModelSaveResult) {
 
 + (NSSet *)ignoredFieldNames; // Fields that exist in the table but should not be read into the model. Default empty set, cannot be nil.
 
+// Implement this method if you want to use another column as primary key
+// This is necessary in order to map FCModel instances on views
++ (NSString *)configuredPrimaryKeyName;
+
 // To create new records with supplied primary-key values, call instanceWithPrimaryKey:, then save when done
 //  setting other fields.
 //

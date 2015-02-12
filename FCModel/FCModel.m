@@ -107,6 +107,7 @@ static inline BOOL checkForOpenDatabaseFatal(BOOL fatal)
 - (void)saveWasRefused { }
 - (void)saveDidFail { }
 + (NSSet *)ignoredFieldNames { return [NSSet set]; }
++ (NSString *)configuredPrimaryKeyName{ return nil; }
 
 #pragma mark - Instance tracking and uniquing
 
@@ -1165,8 +1166,9 @@ static inline BOOL checkForOpenDatabaseFatal(BOOL fatal)
             Class tableModelClass = NSClassFromString(tableName);
             if (! tableModelClass || ! [tableModelClass isSubclassOfClass:self]) continue;
             
-            NSString *primaryKeyName = nil;
-            int primaryKeyColumnCount = 0;
+            NSString *configuredPrimaryKeyName = [tableModelClass configuredPrimaryKeyName];
+            NSString *primaryKeyName = configuredPrimaryKeyName;
+            int primaryKeyColumnCount = configuredPrimaryKeyName == nil ? 0 : 1;
             NSMutableDictionary *fields = [NSMutableDictionary dictionary];
             NSMutableSet *ignoredFieldNames = [([tableModelClass ignoredFieldNames] ?: [NSSet set]) mutableCopy];
             
@@ -1207,8 +1209,9 @@ static inline BOOL checkForOpenDatabaseFatal(BOOL fatal)
                     }
                 }
                 
-                int isPK = [columnsRS intForColumnIndex:5];
-                if (isPK) {
+                int isPK = [fieldName isEqualToString:configuredPrimaryKeyName] || [columnsRS intForColumnIndex:5];
+                // If we have a primary key configured by the model class, don't count the PKs
+                if (isPK && (configuredPrimaryKeyName == nil)) {
                     primaryKeyColumnCount++;
                     primaryKeyName = fieldName;
                 }
