@@ -338,25 +338,45 @@ static inline BOOL checkForOpenDatabaseFatal(BOOL fatal)
 
 + (NSError *)executeUpdateQuery:(NSString *)query, ...
 {
-    checkForOpenDatabaseFatal(YES);
+  va_list args;
+  va_start(args, query);
+  
+  __block NSError *error = [self executeUpdateQuery:query notify:YES vaList:args];
+  va_end(args);
+  return error;
+}
 
++ (NSError *)executeUpdateQuery:(NSString *)query notify:(BOOL)notify, ...
+{
     va_list args;
-    va_list *foolTheStaticAnalyzer = &args;
-    va_start(args, query);
+  va_start(args, notify);
+
+  __block NSError *error = [self executeUpdateQuery:query notify:notify vaList:args];
+  va_end(args);
+  return error;
+}
+
++ (NSError *)executeUpdateQuery:(NSString *)query notify:(BOOL)notify vaList:(va_list)args
+{
+    checkForOpenDatabaseFatal(YES);
 
     __block BOOL success = NO;
     __block NSError *error = nil;
     [g_databaseQueue writeDatabase:^(FMDatabase *db) {
-        success = [db executeUpdate:[self expandQuery:query] error:nil withArgumentsInArray:nil orDictionary:nil orVAList:*foolTheStaticAnalyzer];
+        success = [db executeUpdate:[self expandQuery:query] error:nil withArgumentsInArray:nil orDictionary:nil orVAList:args];
         if (! success) error = [db.lastError copy];
     }];
 
-    va_end(args);
-    if (success) [self dataWasUpdatedExternally];
+    if (success && notify) [self dataWasUpdatedExternally];
     return error;
 }
 
 + (NSError *)executeUpdateQuery:(NSString *)query arguments:(NSArray *)arguments
+{
+  return [self executeUpdateQuery:query notify:YES arguments:arguments];
+}
+
++ (NSError *)executeUpdateQuery:(NSString *)query notify:(BOOL)notify arguments:(NSArray *)arguments
 {
     checkForOpenDatabaseFatal(YES);
 
@@ -367,7 +387,7 @@ static inline BOOL checkForOpenDatabaseFatal(BOOL fatal)
         if (! success) error = [db.lastError copy];
     }];
 
-    if (success) [self dataWasUpdatedExternally];
+    if (success && notify) [self dataWasUpdatedExternally];
     return error;
 }
 
