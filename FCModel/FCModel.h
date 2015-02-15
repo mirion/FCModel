@@ -67,6 +67,7 @@ typedef NS_ENUM(NSInteger, FCModelSaveResult) {
 @property (readonly) BOOL isDeleted;
 @property (readonly) NSError *lastSQLiteError;
 
++ (void)registerCustomModel; // Use this method to register non-standard models, i.e. models that are mapped to tables/views not having exactly the same name
 + (void)openDatabaseAtPath:(NSString *)path withSchemaBuilder:(void (^)(FMDatabase *db, int *schemaVersion))schemaBuilder;
 + (void)openDatabaseAtPath:(NSString *)path withDatabaseInitializer:(void (^)(FMDatabase *db))databaseInitializer schemaBuilder:(void (^)(FMDatabase *db, int *schemaVersion))schemaBuilder;
 
@@ -184,6 +185,7 @@ typedef NS_ENUM(NSInteger, FCModelSaveResult) {
 // Implement this method if you want to use another column as primary key
 // This is necessary in order to map FCModel instances on views
 + (NSString *)configuredPrimaryKeyName;
++ (NSString *)configuredTableName; // Implement this method if you want to use a custom table mapping. In order to be known by FCModel, this subclass should be registered using registerCustomModel.
 
 // To create new records with supplied primary-key values, call instanceWithPrimaryKey:, then save when done
 //  setting other fields.
@@ -284,9 +286,6 @@ typedef NS_ENUM(NSInteger, FCModelSaveResult) {
 //
 + (BOOL)databaseIsOpen;
 
-// Register custom table to model mapping
-+ (void)registerCustomTableMapping:(NSString *)tableName;
-+ (void)registerCustomTableMapping:(NSString *)tableName forClass:(Class)class;
 @end
 
 
