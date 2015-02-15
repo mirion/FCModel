@@ -109,6 +109,7 @@ static inline BOOL checkForOpenDatabaseFatal(BOOL fatal)
 - (void)saveWasRefused { }
 - (void)saveDidFail { }
 + (NSSet *)ignoredFieldNames { return [NSSet set]; }
++ (NSString *)configuredTableName{ return nil; }
 
 #pragma mark - Instance tracking and uniquing
 
@@ -1337,10 +1338,12 @@ static inline BOOL checkForOpenDatabaseFatal(BOOL fatal)
 
 #pragma mark - Custom table mapping
 
-+ (void)registerCustomTableMapping:(NSString *)tableName
++ (void)registerCustomModel
 {
-    NSAssert( self != FCModel.class, @"registerCustomTableMapping: should not be called directly on FCModel" );
-    [self registerCustomTableMapping:tableName forClass:self];
+  NSAssert( self != FCModel.class, @"registerCustomModel: should not be called directly on FCModel" );
+  if ([self configuredTableName]) {
+    [self registerCustomTableMapping:[self configuredTableName] forClass:self];
+  }
 }
 
 + (void)registerCustomTableMapping:(NSString *)tableName forClass:(Class)class
