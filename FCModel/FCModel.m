@@ -37,6 +37,8 @@ static NSDictionary *g_ignoredFieldNames = NULL;
 static NSDictionary *g_primaryKeyFieldName = NULL;
 static NSSet *g_tablesUsingAutoIncrementEmulation = NULL;
 static NSMutableDictionary *g_instances = NULL;
+static NSMutableDictionary *g_classForTableMappings = NULL;
+static NSMutableDictionary *g_tableForClassMappings = NULL;
 static dispatch_semaphore_t g_instancesReadLock;
 
 @interface FMDatabase (HackForVAListsSinceThisIsPrivate)
@@ -118,6 +120,8 @@ static inline BOOL checkForOpenDatabaseFatal(BOOL fatal)
     dispatch_once(&token, ^{
         g_instancesReadLock = dispatch_semaphore_create(1);
         g_instances = [NSMutableDictionary dictionary];
+        g_classForTableMappings = [NSMutableDictionary dictionary];
+        g_tableForClassMappings = [NSMutableDictionary dictionary];
     });
 }
 
@@ -699,7 +703,7 @@ static inline BOOL checkForOpenDatabaseFatal(BOOL fatal)
     BOOL databaseIsOpen = checkForOpenDatabaseFatal(NO);
     
     // Emulation for old AUTOINCREMENT tables
-    if (databaseIsOpen && g_tablesUsingAutoIncrementEmulation && [g_tablesUsingAutoIncrementEmulation containsObject:NSStringFromClass(self)]) {
+    if (databaseIsOpen && g_tablesUsingAutoIncrementEmulation && [g_tablesUsingAutoIncrementEmulation containsObject:[self tableNameForModelClass:self]]) {
         id largestNumber = [self firstValueFromQuery:@"SELECT MAX($PK) FROM $T"];
         int64_t largestExistingValue = largestNumber && largestNumber != NSNull.null ? ((NSNumber *) largestNumber).longLongValue : 0;
 
@@ -825,7 +829,7 @@ static inline BOOL checkForOpenDatabaseFatal(BOOL fatal)
         [self.class postChangeNotification:FCModelDeleteNotification changedFields:[NSSet setWithArray:self.class.databaseFieldNames] instance:self sourceThread:NSThread.currentThread];
     } else {
         NSDictionary *unsavedChanges = self.unsavedChanges;
-        NSSet *ignoredFieldNames = g_ignoredFieldNames[NSStringFromClass(self.class)];
+        NSSet *ignoredFieldNames = g_ignoredFieldNames[[FCModel tableNameForModelClass:self.class]];
 
         [resultDictionary enumerateKeysAndObjectsUsingBlock:^(NSString *fieldName, id fieldValue, BOOL *stop) {
             if ([fieldName isEqualToString:g_primaryKeyFieldName[self.class]] || (ignoredFieldNames && [ignoredFieldNames containsObject:fieldName])) return;
@@ -942,7 +946,7 @@ static inline BOOL checkForOpenDatabaseFatal(BOOL fatal)
         NSArray *columnNames;
         NSMutableArray *values;
         
-        NSString *tableName = NSStringFromClass(self.class);
+        NSString *tableName = [FCModel tableNameForModelClass:self.class];
         NSString *pkName = g_primaryKeyFieldName[self.class];
         id primaryKey = [self encodedValueForFieldName:pkName];
         NSAssert1(primaryKey, @"Cannot update %@ without primary key value", NSStringFromClass(self.class));
@@ -1129,7 +1133,7 @@ static inline BOOL checkForOpenDatabaseFatal(BOOL fatal)
 {
     if (self == FCModel.class) return query;
     query = [query stringByReplacingOccurrencesOfString:@"$PK" withString:g_primaryKeyFieldName[self]];
-    return [query stringByReplacingOccurrencesOfString:@"$T" withString:NSStringFromClass(self)];
+    return [query stringByReplacingOccurrencesOfString:@"$T" withString:[self tableNameForModelClass:self]];
 }
 
 - (NSString *)description
@@ -1195,7 +1199,8 @@ static inline BOOL checkForOpenDatabaseFatal(BOOL fatal)
        ];
         while ([tablesRS next]) {
             NSString *tableName = [tablesRS stringForColumnIndex:0];
-            Class tableModelClass = NSClassFromString(tableName);
+            Class configuredModelClass = [self modelClassForTableName:tableName];
+            Class tableModelClass = configuredModelClass ? configuredModelClass : NSClassFromString(tableName);
             if (! tableModelClass || ! [tableModelClass isSubclassOfClass:self]) continue;
 
             NSString *configuredPrimaryKeyName = [tableModelClass configuredPrimaryKeyName];
@@ -1312,6 +1317,7 @@ static inline BOOL checkForOpenDatabaseFatal(BOOL fatal)
             id classKey = tableModelClass;
             [mutableFieldInfo setObject:fields forKey:classKey];
             [mutablePrimaryKeyFieldName setObject:primaryKeyName forKey:classKey];
+            if (!configuredModelClass) { [self registerCustomTableMapping:tableName forClass:tableModelClass]; }
             [columnsRS close];
 
             if (ignoredFieldNames.count) mutableIgnoredFieldNames[tableName] = [ignoredFieldNames copy];
@@ -1350,6 +1356,8 @@ static inline BOOL checkForOpenDatabaseFatal(BOOL fatal)
     g_fieldInfo = nil;
     g_ignoredFieldNames = nil;
     g_tablesUsingAutoIncrementEmulation = nil;
+    g_classForTableMappings = nil;
+    g_tableForClassMappings = nil;
     
     return ! modelsAreStillLoaded;
 }
@@ -1360,6 +1368,30 @@ static inline BOOL checkForOpenDatabaseFatal(BOOL fatal)
 {
     checkForOpenDatabaseFatal(YES);
     [g_databaseQueue readDatabase:block];
+}
+
+#pragma mark - Custom table mapping
+
++ (void)registerCustomTableMapping:(NSString *)tableName
+{
+    NSAssert( self != FCModel.class, @"registerCustomTableMapping: should not be called directly on FCModel" );
+    [self registerCustomTableMapping:tableName forClass:self];
+}
+
++ (void)registerCustomTableMapping:(NSString *)tableName forClass:(Class)class
+{
+    [g_classForTableMappings setObject:class forKey:tableName];
+    [g_tableForClassMappings setObject:tableName forKey:(id)class];
+}
+
++ (Class)modelClassForTableName:(NSString *)tableName
+{
+    return [g_classForTableMappings objectForKey:tableName];
+}
+
++ (NSString *)tableNameForModelClass:(Class)class
+{
+    return [g_tableForClassMappings objectForKey:class];
 }
 
 #pragma mark - Batch notification queuing
