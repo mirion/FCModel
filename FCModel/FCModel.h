@@ -274,6 +274,9 @@ typedef NS_ENUM(NSInteger, FCModelSaveResult) {
 //
 + (BOOL)databaseIsOpen;
 
+// Register custom table to model mapping
++ (void)registerCustomTableMapping:(NSString *)tableName;
++ (void)registerCustomTableMapping:(NSString *)tableName forClass:(Class)class;
 @end
 
 
