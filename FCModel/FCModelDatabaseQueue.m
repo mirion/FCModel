@@ -97,9 +97,12 @@
 }
 
 - (void (^)())databaseBlockWithBlock:(void (^)(FMDatabase *db))block readOnly:(BOOL)readOnly {
+    BOOL shouldResetInExpectedWrite = (NSOperationQueue.currentQueue != self);
+
     FMDatabase *db = self.database;
     return ^{
         BOOL hadOpenResultSetsBefore = db.hasOpenResultSets;
+        if (shouldResetInExpectedWrite) _inExpectedWrite = NO;
         if (! readOnly) _inExpectedWrite = YES;
 
         // Read change counter from SQLite file header to detect changes made by other processes during this write
@@ -113,8 +116,6 @@
         block(db);
 
         dispatch_sync(dispatchFileWriteQueue, ^{
-            _inExpectedWrite = NO;
-            
             // if more than 1 change during this expected write, either there's 2 queries in it (unexpected) or another process changed it
             uint32_t changeCounterAfterBlock = 0;
             if (changeCounterReadFileDescriptor > 0) {
