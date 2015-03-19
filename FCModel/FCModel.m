@@ -1371,6 +1371,12 @@ static inline BOOL checkForOpenDatabaseFatal(BOOL fatal)
     [g_databaseQueue readDatabase:block];
 }
 
++ (void)inDatabaseSyncUpdate:(void (^)(FMDatabase *db))block
+{
+  checkForOpenDatabaseFatal(YES);
+  [g_databaseQueue writeDatabase:block];
+}
+
 #pragma mark - Custom table mapping
 
 + (void)registerCustomModel
