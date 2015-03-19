@@ -83,6 +83,7 @@ typedef NS_ENUM(NSInteger, FCModelSaveResult) {
 //  executed synchronously on FCModel's private database-operation queue.
 //  (IMPORTANT: READ THE NEXT METHOD DEFINITION)
 + (void)inDatabaseSync:(void (^)(FMDatabase *db))block;
++ (void)inDatabaseSyncUpdate:(void (^)(FMDatabase *db))block;
 
 // Call if you perform INSERT/UPDATE/DELETE on any FCModel table outside of the instance*/save
 // methods. This will cause any instances in existence to reload their data from the database.
