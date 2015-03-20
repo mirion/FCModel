@@ -73,6 +73,7 @@ typedef NS_ENUM(NSInteger, FCModelSaveResult) {
 
 + (NSArray *)databaseFieldNames;
 + (NSString *)primaryKeyFieldName;
++ (NSString *)tableName;
 
 // Be careful with this -- the array could be out of date by the time you use it
 //  if a new instance is loaded by another thread. Everything in it is guaranteed
