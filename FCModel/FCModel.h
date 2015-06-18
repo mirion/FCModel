@@ -262,6 +262,9 @@ typedef NS_ENUM(NSInteger, FCModelSaveResult) {
 //
 + (FCModelFieldInfo *)infoForFieldName:(NSString *)fieldName;
 
+// Clear the data loaded in memory
++ (BOOL)clearCachedData;
+
 // Closing the database is not necessary in most cases. Only close it if you need to, such as if you need to delete and recreate
 //  the database file. Caveats:
 //     - Any FCModel call after closing will bizarrely fail until you call openDatabaseAtPath: again.

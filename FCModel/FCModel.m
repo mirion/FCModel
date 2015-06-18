@@ -1334,23 +1334,31 @@ static inline BOOL checkForOpenDatabaseFatal(BOOL fatal)
     [g_databaseQueue startMonitoringForExternalChanges];
 }
 
++ (BOOL)clearCachedData;
+{
+  [FCModelCachedObject clearCache];
+  
+  __block BOOL modelsAreStillLoaded = NO;
+  dispatch_semaphore_wait(g_instancesReadLock, DISPATCH_TIME_FOREVER);
+  [g_instances enumerateKeysAndObjectsUsingBlock:^(Class class, NSMapTable *classInstances, BOOL *stop) {
+    for (id primaryKeyValue in classInstances.keyEnumerator.allObjects) {
+      modelsAreStillLoaded = YES;
+      NSLog(@"[FCModel] closeDatabase: %@ ID %@ is still retained by something and is being abandoned by FCModel. This can cause weird bugs. Don't let this happen.", NSStringFromClass(class), primaryKeyValue);
+    }
+  }];
+  [g_instances removeAllObjects];
+  dispatch_semaphore_signal(g_instancesReadLock);
+  
+  return ! modelsAreStillLoaded;
+}
+
 + (BOOL)closeDatabase
 {
     if (! g_databaseQueue) return YES;
     
     [NSThread.currentThread.threadDictionary removeObjectsForKeys:@[ FCModelEnqueuedBatchNotificationsKey, FCModelEnqueuedBatchChangedFieldsKey ]];
-    [FCModelCachedObject clearCache];
 
-    __block BOOL modelsAreStillLoaded = NO;
-    dispatch_semaphore_wait(g_instancesReadLock, DISPATCH_TIME_FOREVER);
-    [g_instances enumerateKeysAndObjectsUsingBlock:^(Class class, NSMapTable *classInstances, BOOL *stop) {
-        for (id primaryKeyValue in classInstances.keyEnumerator.allObjects) {
-            modelsAreStillLoaded = YES;
-            NSLog(@"[FCModel] closeDatabase: %@ ID %@ is still retained by something and is being abandoned by FCModel. This can cause weird bugs. Don't let this happen.", NSStringFromClass(class), primaryKeyValue);
-        }
-    }];
-    [g_instances removeAllObjects];
-    dispatch_semaphore_signal(g_instancesReadLock);
+    BOOL modelsAreStillLoaded = ! [ self clearCachedData ];
 
     [g_databaseQueue close];
     g_databaseQueue = nil;
