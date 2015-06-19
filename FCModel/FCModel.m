@@ -1334,8 +1334,27 @@ static inline BOOL checkForOpenDatabaseFatal(BOOL fatal)
     [g_databaseQueue startMonitoringForExternalChanges];
 }
 
-+ (BOOL)clearCachedData;
++ (void)clearCachedData;
 {
+  if (! g_databaseQueue) return;
+
+  [FCModelCachedObject clearCache];
+  
+  dispatch_semaphore_wait(g_instancesReadLock, DISPATCH_TIME_FOREVER);
+  if (self.class == FCModel.class) {
+    [g_instances removeAllObjects];
+  }
+  else {
+    [g_instances[self.class] removeAllObjects];
+  }
+  dispatch_semaphore_signal(g_instancesReadLock);
+}
+
++ (BOOL)closeDatabase
+{
+  if (! g_databaseQueue) return YES;
+  
+  [NSThread.currentThread.threadDictionary removeObjectsForKeys:@[ FCModelEnqueuedBatchNotificationsKey, FCModelEnqueuedBatchChangedFieldsKey ]];
   [FCModelCachedObject clearCache];
   
   __block BOOL modelsAreStillLoaded = NO;
@@ -1349,18 +1368,7 @@ static inline BOOL checkForOpenDatabaseFatal(BOOL fatal)
   [g_instances removeAllObjects];
   dispatch_semaphore_signal(g_instancesReadLock);
   
-  return ! modelsAreStillLoaded;
-}
-
-+ (BOOL)closeDatabase
-{
-    if (! g_databaseQueue) return YES;
-    
-    [NSThread.currentThread.threadDictionary removeObjectsForKeys:@[ FCModelEnqueuedBatchNotificationsKey, FCModelEnqueuedBatchChangedFieldsKey ]];
-
-    BOOL modelsAreStillLoaded = ! [ self clearCachedData ];
-
-    [g_databaseQueue close];
+  [g_databaseQueue close];
     g_databaseQueue = nil;
     g_primaryKeyFieldName = nil;
     g_fieldInfo = nil;
