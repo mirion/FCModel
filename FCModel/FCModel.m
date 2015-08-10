@@ -803,10 +803,15 @@ static inline BOOL checkForOpenDatabaseFatal(BOOL fatal)
 
 - (void)reload:(NSNotification *)n
 {
-    if (! checkForOpenDatabaseFatal(NO)) return;
+  Class targetedClass = n.object;
+  if (targetedClass && ! [self isKindOfClass:targetedClass]) return;
 
-    Class targetedClass = n.object;
-    if (targetedClass && ! [self isKindOfClass:targetedClass]) return;
+  [ self reload ];
+}
+
+- (void)reload
+{
+    if (! checkForOpenDatabaseFatal(NO)) return;
     if (! self.existsInDatabase) return;
 
     __block NSDictionary *resultDictionary = nil;
@@ -928,6 +933,13 @@ static inline BOOL checkForOpenDatabaseFatal(BOOL fatal)
 }
 
 - (NSArray *)changedFieldNames { return self.unsavedChanges.allKeys; }
+
+- (void)reloadAfterRevertUnsavedChanges
+{
+  if (! self.existsInDatabase) return;
+  [ self revertUnsavedChanges ];
+  [ self reload ];
+}
 
 - (FCModelSaveResult)save
 {
