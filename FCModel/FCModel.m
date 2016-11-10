@@ -1028,6 +1028,15 @@ static inline BOOL checkForOpenDatabaseFatal(BOOL fatal)
             }
         }
 
+        // insert the newly created object into the cache
+        if (!update) {
+            dispatch_semaphore_wait(g_instancesReadLock, DISPATCH_TIME_FOREVER);
+            NSMapTable *classCache = g_instances[self.class];
+            if (! classCache) classCache = g_instances[(id) self.class] = [NSMapTable strongToWeakObjectsMapTable];
+            [classCache setObject:self forKey:[self valueForKey:pkName]];
+            dispatch_semaphore_signal(g_instancesReadLock);
+        }
+
         BOOL success = NO;
         success = [db executeUpdate:query withArgumentsInArray:values];
         if (success) {
