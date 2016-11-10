@@ -1029,7 +1029,7 @@ static inline BOOL checkForOpenDatabaseFatal(BOOL fatal)
         }
 
         // insert the newly created object into the cache
-        if (!update) {
+        if (!update && [self.class useInstancesCache]) {
             dispatch_semaphore_wait(g_instancesReadLock, DISPATCH_TIME_FOREVER);
             NSMapTable *classCache = g_instances[self.class];
             if (! classCache) classCache = g_instances[(id) self.class] = [NSMapTable strongToWeakObjectsMapTable];
