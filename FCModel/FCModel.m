@@ -207,6 +207,11 @@ static inline BOOL checkForOpenDatabaseFatal(BOOL fatal)
     return model;
 }
 
++ (instancetype)autonomousInstanceFromDatabaseWithPrimaryKey:(id)key
+{
+  return [ self instanceFromDatabaseWithPrimaryKey:key ];
+}
+
 + (void)dataWasUpdatedExternally
 {
     NSThread *sourceThread = NSThread.currentThread;

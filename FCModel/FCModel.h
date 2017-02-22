@@ -108,6 +108,7 @@ typedef NS_ENUM(NSInteger, FCModelSaveResult) {
 // CRUD basics
 + (instancetype)instanceWithPrimaryKey:(id)primaryKeyValue; // will create if nonexistent
 + (instancetype)instanceWithPrimaryKey:(id)primaryKeyValue createIfNonexistent:(BOOL)create; // will return nil if nonexistent
++ (instancetype)autonomousInstanceFromDatabaseWithPrimaryKey:(id)key; // will return an instance as it is stored into the database. The result will not be cached
 - (NSArray *)changedFieldNames;
 - (void)revertUnsavedChanges;
 - (void)revertUnsavedChangeToFieldName:(NSString *)fieldName;
