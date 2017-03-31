@@ -88,6 +88,7 @@ static inline BOOL checkForOpenDatabaseFatal(BOOL fatal)
 }
 @property (nonatomic, copy) NSDictionary *_rowValuesInDatabase;
 @property (nonatomic, copy) NSError *_lastSQLiteError;
+@property (nonatomic) BOOL autonomous;
 @end
 
 
@@ -209,7 +210,10 @@ static inline BOOL checkForOpenDatabaseFatal(BOOL fatal)
 
 + (instancetype)autonomousInstanceFromDatabaseWithPrimaryKey:(id)key
 {
-  return [ self instanceFromDatabaseWithPrimaryKey:key ];
+  FCModel* result = [ self instanceFromDatabaseWithPrimaryKey:key ];
+
+  result.autonomous = TRUE;
+  return result;
 }
 
 + (void)dataWasUpdatedExternally
@@ -1033,15 +1037,6 @@ static inline BOOL checkForOpenDatabaseFatal(BOOL fatal)
             }
         }
 
-        // insert the newly created object into the cache
-        if (!update && [self.class useInstancesCache]) {
-            dispatch_semaphore_wait(g_instancesReadLock, DISPATCH_TIME_FOREVER);
-            NSMapTable *classCache = g_instances[self.class];
-            if (! classCache) classCache = g_instances[(id) self.class] = [NSMapTable strongToWeakObjectsMapTable];
-            [classCache setObject:self forKey:[self valueForKey:pkName]];
-            dispatch_semaphore_signal(g_instancesReadLock);
-        }
-
         BOOL success = NO;
         success = [db executeUpdate:query withArgumentsInArray:values];
         if (success) {
@@ -1055,7 +1050,26 @@ static inline BOOL checkForOpenDatabaseFatal(BOOL fatal)
             result = FCModelSaveFailed;
             return;
         }
-        
+
+        // insert the just saved object into the cache, or update the cache if it was autonomous
+        if ((self.autonomous || !update) && [self.class useInstancesCache]) {
+            dispatch_semaphore_wait(g_instancesReadLock, DISPATCH_TIME_FOREVER);
+            NSMapTable *classCache = g_instances[self.class];
+            if (! classCache) classCache = g_instances[(id) self.class] = [NSMapTable strongToWeakObjectsMapTable];
+            if (self.autonomous) {
+              FCModel* cachedInstance = [classCache objectForKey:[self valueForKey:pkName]];
+              if ( cachedInstance ) {
+                [cachedInstance reload];
+              } else {
+                self.autonomous = FALSE;
+                [classCache setObject:self forKey:[self valueForKey:pkName]];
+              }
+            } else {
+              [classCache setObject:self forKey:[self valueForKey:pkName]];
+            }
+            dispatch_semaphore_signal(g_instancesReadLock);
+        }
+
         NSDictionary *rowValuesInDatabase = self._rowValuesInDatabase;
         NSMutableDictionary *newRowValues = rowValuesInDatabase ? [rowValuesInDatabase mutableCopy] : [NSMutableDictionary dictionary];
         [changes enumerateKeysAndObjectsUsingBlock:^(NSString *fieldName, id obj, BOOL *stop) {
